@@ -22,6 +22,10 @@ uniform float gravatationalLensing = 1.0;
 uniform float renderBlackHole = 1.0;
 uniform float mouseControl = 0.0;
 uniform float fovScale = 1.0;
+uniform float useExternalCamera = 0.0;
+uniform vec3 externalCameraPos = vec3(0.0);
+uniform vec3 externalTarget = vec3(0.0);
+uniform float externalFovScale = 1.0;
 
 uniform float adiskEnabled = 1.0;
 uniform float adiskParticle = 1.0;
@@ -30,7 +34,7 @@ uniform float adiskLit = 0.5;
 uniform float adiskDensityV = 1.0;
 uniform float adiskDensityH = 1.0;
 uniform float adiskNoiseScale = 1.0;
-uniform float adiskNoiseLOD = 5.0;
+uniform float adiskNoiseLOD = 3.0;
 uniform float adiskSpeed = 0.5;
 
 struct Ring {
@@ -261,28 +265,41 @@ void adiskColor(vec3 pos, inout vec3 color, inout float alpha) {
   float innerRadius = 2.6;
   float outerRadius = 12.0;
 
-  // Density linearly decreases as the distance to the blackhole center
-  // increases.
-  float density = max(
-      0.0, 1.0 - length(pos.xyz / vec3(outerRadius, adiskHeight, outerRadius)));
-  if (density < 0.001) {
+  // Fast distance check using squared length to avoid sqrt
+  float posSqLen = dot(pos.xz, pos.xz);
+  if (posSqLen > outerRadius * outerRadius) {
     return;
   }
 
-  density *= pow(1.0 - abs(pos.y) / adiskHeight, adiskDensityV);
+  // Early height check
+  float absY = abs(pos.y);
+  if (absY > adiskHeight) {
+    return;
+  }
 
-  // Set particale density to 0 when radius is below the inner most stable
+  float posLen = sqrt(posSqLen + pos.y * pos.y);
+
+  // Density linearly decreases as the distance to the blackhole center
+  // increases.
+  float density = max(0.0, 1.0 - posLen / outerRadius);
+  if (density < 0.005) {
+    return;
+  }
+
+  density *= pow(1.0 - absY / adiskHeight, adiskDensityV);
+
+  // Set particle density to 0 when radius is below the inner most stable
   // circular orbit.
-  density *= smoothstep(innerRadius, innerRadius * 1.1, length(pos));
+  density *= smoothstep(innerRadius, innerRadius * 1.1, posLen);
 
   // Avoid the shader computation when density is very small.
-  if (density < 0.001) {
+  if (density < 0.005) {
     return;
   }
 
   vec3 sphericalCoord = toSpherical(pos);
 
-  // Scale the rho and phi so that the particales appear to be at the correct
+  // Scale the rho and phi so that the particles appear to be at the correct
   // scale visually.
   sphericalCoord.y *= 2.0;
   sphericalCoord.z *= 4.0;
@@ -295,14 +312,14 @@ void adiskColor(vec3 pos, inout vec3 color, inout float alpha) {
     return;
   }
 
+  // Optimized noise calculation with fewer iterations
   float noise = 1.0;
-  for (int i = 0; i < int(adiskNoiseLOD); i++) {
-    noise *= 0.5 * snoise(sphericalCoord * pow(i, 2) * adiskNoiseScale) + 0.5;
-    if (i % 2 == 0) {
-      sphericalCoord.y += time * adiskSpeed;
-    } else {
-      sphericalCoord.y -= time * adiskSpeed;
-    }
+  int noiseLOD = min(int(adiskNoiseLOD), 4);  // Cap at 4 for performance
+  vec3 noiseCoord = sphericalCoord * adiskNoiseScale;
+  for (int i = 1; i <= 4; i++) {
+    if (i > noiseLOD) break;
+    noise *= 0.5 * snoise(noiseCoord * float(i * i)) + 0.5;
+    noiseCoord.y += (i % 2 == 0 ? -1.0 : 1.0) * time * adiskSpeed;
   }
 
   vec3 dustColor =
@@ -315,14 +332,21 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   vec3 color = vec3(0.0);
   float alpha = 1.0;
 
-  float STEP_SIZE = 0.1;
+  float STEP_SIZE = 0.15;  // Increased step size for better performance
   dir *= STEP_SIZE;
 
   // Initial values
   vec3 h = cross(pos, dir);
   float h2 = dot(h, h);
 
-  for (int i = 0; i < 300; i++) {
+  float distSq = dot(pos, pos);
+
+  // Dynamic max iterations based on distance - closer objects need more precision
+  int maxIter = distSq > 400.0 ? 80 : (distSq > 100.0 ? 120 : 150);
+
+  for (int i = 0; i < 150; i++) {
+    if (i >= maxIter) break;  // Early exit for distant rays
+
     if (renderBlackHole > 0.5) {
       // If gravatational lensing is applied
       if (gravatationalLensing > 0.5) {
@@ -330,25 +354,20 @@ vec3 traceColor(vec3 pos, vec3 dir) {
         dir += acc;
       }
 
+      distSq = dot(pos, pos);
+
       // Reach event horizon
-      if (dot(pos, pos) < 1.0) {
+      if (distSq < 1.0) {
         return color;
       }
 
-      float minDistance = INFINITY;
+      // Early exit if ray is too far and moving away
+      if (distSq > 900.0 && dot(pos, dir) > 0.0) {
+        break;
+      }
 
-      if (false) {
-        Ring ring;
-        ring.center = vec3(0.0, 0.05, 0.0);
-        ring.normal = vec3(0.0, 1.0, 0.0);
-        ring.innerRadius = 2.0;
-        ring.outerRadius = 6.0;
-        ring.rotateSpeed = 0.08;
-        ringColor(pos, dir, ring, minDistance, color);
-      } else {
-        if (adiskEnabled > 0.5) {
-          adiskColor(pos, color, alpha);
-        }
+      if (adiskEnabled > 0.5) {
+        adiskColor(pos, color, alpha);
       }
     }
 
@@ -365,11 +384,16 @@ void main() {
   mat3 view;
 
   vec3 cameraPos;
-  if (mouseControl > 0.5) {
+  vec3 target = vec3(0.0);
+  float fov = fovScale;
+  if (useExternalCamera > 0.5) {
+    cameraPos = externalCameraPos;
+    target = externalTarget;
+    fov = externalFovScale;
+  } else if (mouseControl > 0.5) {
     vec2 mouse = clamp(vec2(mouseX, mouseY) / resolution.xy, 0.0, 1.0) - 0.5;
     cameraPos = vec3(-cos(mouse.x * 10.0) * 15.0, mouse.y * 30.0,
                      sin(mouse.x * 10.0) * 15.0);
-
   } else if (frontView > 0.5) {
     cameraPos = vec3(10.0, 1.0, 10.0);
   } else if (topView > 0.5) {
@@ -379,13 +403,12 @@ void main() {
                      sin(time * 0.1) * 15.0);
   }
 
-  vec3 target = vec3(0.0, 0.0, 0.0);
   view = lookAt(cameraPos, target, radians(cameraRoll));
 
   vec2 uv = gl_FragCoord.xy / resolution.xy - vec2(0.5);
   uv.x *= resolution.x / resolution.y;
 
-  vec3 dir = normalize(vec3(-uv.x * fovScale, uv.y * fovScale, 1.0));
+  vec3 dir = normalize(vec3(-uv.x * fov, uv.y * fov, 1.0));
   vec3 pos = cameraPos;
   dir = view * dir;
 

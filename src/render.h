@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <GL/glew.h>
+#include <glm/glm.hpp>
 
 GLuint createColorTexture(int width, int height, bool hdr = true);
 
@@ -36,6 +37,7 @@ struct RenderToTextureInfo {
   std::string vertexShader = "shader/simple.vert";
   std::string fragShader;
   std::map<std::string, float> floatUniforms;
+  std::map<std::string, glm::vec3> vec3Uniforms;
   std::map<std::string, GLuint> textureUniforms;
   std::map<std::string, GLuint> cubemapUniforms;
   GLuint targetTexture;

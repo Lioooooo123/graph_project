@@ -1,9 +1,9 @@
 #version 330 core
 
+out vec4 fragColor;
+
 uniform sampler2D texture0;
 uniform vec2 resolution; // viewport resolution in pixels
-
-out vec4 fragColor;
 
 const float brightPassThreshold = 1.0;
 const vec3 luminanceVector = vec3(0.2125, 0.7154, 0.0721);

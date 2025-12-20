@@ -112,6 +112,11 @@ static bool bindToTextureUnit(GLuint program, const std::string &name,
 }
 
 void renderToTexture(const RenderToTextureInfo &rtti) {
+  static GLuint quadVAO = 0;
+  if (quadVAO == 0) {
+    quadVAO = createQuadVAO();
+  }
+
   // Lazy creation of a framebuffer as the render target and attach the texture
   // as the color attachment.
   static std::map<GLuint, GLuint> textureFramebufferMap;
@@ -148,6 +153,8 @@ void renderToTexture(const RenderToTextureInfo &rtti) {
 
     glUseProgram(program);
 
+    glBindVertexArray(quadVAO);
+
     // Set up the uniforms.
     {
       glUniform2f(glGetUniformLocation(program, "resolution"),
@@ -160,6 +167,17 @@ void renderToTexture(const RenderToTextureInfo &rtti) {
         GLint loc = glGetUniformLocation(program, name.c_str());
         if (loc != -1) {
           glUniform1f(loc, val);
+        } else {
+          std::cout << "WARNING: uniform " << name << " is not found"
+                    << std::endl;
+        }
+      }
+
+      // Update vec3 uniforms
+      for (auto const &[name, val] : rtti.vec3Uniforms) {
+        GLint loc = glGetUniformLocation(program, name.c_str());
+        if (loc != -1) {
+          glUniform3fv(loc, 1, &val[0]);
         } else {
           std::cout << "WARNING: uniform " << name << " is not found"
                     << std::endl;
