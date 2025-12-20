@@ -38,9 +38,10 @@ static GLuint compileShader(const std::string &shaderSource,
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
 
     // The maxLength includes the NULL character
-    std::vector<GLchar> infoLog(maxLength);
-    glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
-    std::cout << infoLog[0] << std::endl;
+    std::vector<GLchar> infoLog(maxLength > 1 ? maxLength : 1);
+    glGetShaderInfoLog(shader, maxLength, &maxLength, infoLog.data());
+    std::string log(infoLog.data(), infoLog.data() + maxLength);
+    std::cerr << "Shader compile error: " << log << std::endl;
     glDeleteShader(shader);
     throw "Failed to compile the shader.";
   }
@@ -73,9 +74,10 @@ GLuint createShaderProgram(const std::string &vertexShaderFile,
     int maxLength;
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
     if (maxLength > 0) {
-      std::vector<GLchar> infoLog(maxLength);
-      glGetProgramInfoLog(program, maxLength, NULL, &infoLog[0]);
-      std::cout << infoLog[0] << std::endl;
+      std::vector<GLchar> infoLog(maxLength > 1 ? maxLength : 1);
+      glGetProgramInfoLog(program, maxLength, NULL, infoLog.data());
+      std::string log(infoLog.data(), infoLog.data() + maxLength);
+      std::cerr << "Shader link error: " << log << std::endl;
       throw "Failed to link the shader.";
     }
   }

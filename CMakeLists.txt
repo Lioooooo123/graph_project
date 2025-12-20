@@ -20,6 +20,18 @@ conan_cmake_configure(REQUIRES imgui/1.86 glfw/3.3.6 glew/2.2.0 glm/0.9.9.8 stb/
 
 conan_cmake_autodetect(settings)
 
+# Conan 1.x settings stop at apple-clang 16; clamp newer local versions to keep installs working.
+if(APPLE AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17")
+  set(_fixed_settings "")
+  foreach(_s ${settings})
+    if(_s MATCHES "^compiler.version=")
+      set(_s "compiler.version=16")
+    endif()
+    list(APPEND _fixed_settings "${_s}")
+  endforeach()
+  set(settings "${_fixed_settings}")
+endif()
+
 conan_cmake_install(PATH_OR_REFERENCE .
                     BUILD missing
                     REMOTE conancenter

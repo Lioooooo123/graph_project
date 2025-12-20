@@ -29,19 +29,26 @@
 #include "shader.h"
 #include "texture.h"
 
-static const int SCR_WIDTH = 1920;
-static const int SCR_HEIGHT = 1080;
+static int SCR_WIDTH = 1920;
+static int SCR_HEIGHT = 1080;
 
 static float mouseX, mouseY;
 
+static const bool kEnableImGui = false;
+static const int kMaxBloomIter = 8;
+
 #define IMGUI_TOGGLE(NAME, DEFAULT)                                            \
   static bool NAME = DEFAULT;                                                  \
-  ImGui::Checkbox(#NAME, &NAME);                                               \
+  if (kEnableImGui) {                                                          \
+    ImGui::Checkbox(#NAME, &NAME);                                             \
+  }                                                                            \
   rtti.floatUniforms[#NAME] = NAME ? 1.0f : 0.0f;
 
 #define IMGUI_SLIDER(NAME, DEFAULT, MIN, MAX)                                  \
   static float NAME = DEFAULT;                                                 \
-  ImGui::SliderFloat(#NAME, &NAME, MIN, MAX);                                  \
+  if (kEnableImGui) {                                                          \
+    ImGui::SliderFloat(#NAME, &NAME, MIN, MAX);                                \
+  }                                                                            \
   rtti.floatUniforms[#NAME] = NAME;
 
 static void glfwErrorCallback(int error, const char *description) {
@@ -72,18 +79,20 @@ public:
     glUseProgram(0);
   }
 
-  void render(GLuint inputColorTexture, GLuint destFramebuffer = 0) {
+  void render(GLuint inputColorTexture, int width, int height,
+              GLuint destFramebuffer = 0) {
     glBindFramebuffer(GL_FRAMEBUFFER, destFramebuffer);
 
+    glViewport(0, 0, width, height);
     glDisable(GL_DEPTH_TEST);
 
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(this->program);
 
     glUniform2f(glGetUniformLocation(this->program, "resolution"),
-                (float)SCR_WIDTH, (float)SCR_HEIGHT);
+                (float)width, (float)height);
 
     glUniform1f(glGetUniformLocation(this->program, "time"),
                 (float)glfwGetTime());
@@ -103,8 +112,24 @@ int main(int, char **) {
   if (!glfwInit())
     return 1;
 
-  // Create window with graphics context
-  glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+  // Select a modern core profile before creating the window so GLEW/GL3 loader
+  // can fetch symbols.
+#if __APPLE__
+  // macOS supports up to 4.1 core; ask for 4.1 so GLSL 330 shaders are
+  // accepted.
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required on Mac
+#else
+  // GL 3.0 + GLSL 130
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+  // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+
+  // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
+#endif
+
+  // Create window with graphics context (windowed)
   GLFWwindow *window =
       glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Wormhole", NULL, NULL);
   if (window == NULL)
@@ -116,14 +141,15 @@ int main(int, char **) {
   glfwSetCursorPosCallback(window, mouseCallback);
   glfwSetWindowPos(window, 0, 0);
 
+  // GLEW needs experimental on core profile to load all symbols on macOS.
+  glewExperimental = GL_TRUE;
   bool err = glewInit() != GLEW_OK;
   if (err) {
     fprintf(stderr, "Failed to initialize OpenGL loader!\n");
     return 1;
   }
 
-  if (0)
-  {
+  if (0) {
     // Enable the debugging layer of OpenGL
     //
     // GL_DEBUG_OUTPUT - Faster version but not useful for breakpoints
@@ -140,23 +166,12 @@ int main(int, char **) {
     glDebugMessageCallback(GLDebugMessageCallback, nullptr);
   }
 
-  {
-
-    // Decide GL+GLSL versions
+  if (kEnableImGui) {
+    // Decide GL+GLSL versions (must match hints used above)
 #if __APPLE__
-    // GL 3.2 + GLSL 150
-    const char *glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required on Mac
+    const char *glsl_version = "#version 330 core";
 #else
-    // GL 3.0 + GLSL 130
     const char *glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+
-    // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
 #endif
 
     // Setup Dear ImGui context
@@ -172,11 +187,6 @@ int main(int, char **) {
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
-
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
   }
 
   GLuint fboBlackhole, texBlackhole;
@@ -197,15 +207,21 @@ int main(int, char **) {
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
 
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    if (kEnableImGui) {
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+    }
 
     // ImGui::ShowDemoWindow();
 
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    glViewport(0, 0, width, height);
+  int width, height;
+  glfwGetFramebufferSize(window, &width, &height);
+  if (width <= 0 || height <= 0) {
+    glfwSwapBuffers(window);
+    continue;
+  }
+  glViewport(0, 0, width, height);
 
     // renderScene(fboBlackhole);
 
@@ -213,7 +229,37 @@ int main(int, char **) {
     static GLuint colorMap = loadTexture2D("assets/color_map.png");
     static GLuint uvChecker = loadTexture2D("assets/uv_checker.png");
 
-    static GLuint texBlackhole = createColorTexture(SCR_WIDTH, SCR_HEIGHT);
+    static int renderWidth = 0;
+    static int renderHeight = 0;
+    static GLuint texBlackhole = 0;
+    static GLuint texBrightness = 0;
+    static GLuint texDownsampled[kMaxBloomIter] = {};
+    static GLuint texUpsampled[kMaxBloomIter] = {};
+    static GLuint texBloomFinal = 0;
+    static GLuint texTonemapped = 0;
+    if (width != renderWidth || height != renderHeight) {
+      renderWidth = width;
+      renderHeight = height;
+      SCR_WIDTH = width;
+      SCR_HEIGHT = height;
+
+      texBlackhole = createColorTexture(renderWidth, renderHeight);
+      texBrightness = createColorTexture(renderWidth, renderHeight);
+      texBloomFinal = createColorTexture(renderWidth, renderHeight);
+      texTonemapped = createColorTexture(renderWidth, renderHeight);
+      for (int i = 0; i < kMaxBloomIter; i++) {
+        int downW = renderWidth >> (i + 1);
+        int downH = renderHeight >> (i + 1);
+        if (downW < 1) downW = 1;
+        if (downH < 1) downH = 1;
+        int upW = renderWidth >> i;
+        int upH = renderHeight >> i;
+        if (upW < 1) upW = 1;
+        if (upH < 1) upH = 1;
+        texDownsampled[i] = createColorTexture(downW, downH);
+        texUpsampled[i] = createColorTexture(upW, upH);
+      }
+    }
     {
       RenderToTextureInfo rtti;
       rtti.fragShader = "shader/blackhole_main.frag";
@@ -222,8 +268,8 @@ int main(int, char **) {
       rtti.floatUniforms["mouseX"] = mouseX;
       rtti.floatUniforms["mouseY"] = mouseY;
       rtti.targetTexture = texBlackhole;
-      rtti.width = SCR_WIDTH;
-      rtti.height = SCR_HEIGHT;
+      rtti.width = renderWidth;
+      rtti.height = renderHeight;
 
       IMGUI_TOGGLE(gravatationalLensing, true);
       IMGUI_TOGGLE(renderBlackHole, true);
@@ -244,38 +290,30 @@ int main(int, char **) {
       renderToTexture(rtti);
     }
 
-    static GLuint texBrightness = createColorTexture(SCR_WIDTH, SCR_HEIGHT);
     {
       RenderToTextureInfo rtti;
       rtti.fragShader = "shader/bloom_brightness_pass.frag";
       rtti.textureUniforms["texture0"] = texBlackhole;
       rtti.targetTexture = texBrightness;
-      rtti.width = SCR_WIDTH;
-      rtti.height = SCR_HEIGHT;
+      rtti.width = renderWidth;
+      rtti.height = renderHeight;
       renderToTexture(rtti);
     }
 
-    const int MAX_BLOOM_ITER = 8;
-    static GLuint texDownsampled[MAX_BLOOM_ITER];
-    static GLuint texUpsampled[MAX_BLOOM_ITER];
-    if (texDownsampled[0] == 0) {
-      for (int i = 0; i < MAX_BLOOM_ITER; i++) {
-        texDownsampled[i] =
-            createColorTexture(SCR_WIDTH >> (i + 1), SCR_HEIGHT >> (i + 1));
-        texUpsampled[i] = createColorTexture(SCR_WIDTH >> i, SCR_HEIGHT >> i);
-      }
+    static int bloomIterations = kMaxBloomIter;
+    if (kEnableImGui) {
+      ImGui::SliderInt("bloomIterations", &bloomIterations, 1, 8);
     }
-
-    static int bloomIterations = MAX_BLOOM_ITER;
-    ImGui::SliderInt("bloomIterations", &bloomIterations, 1, 8);
     for (int level = 0; level < bloomIterations; level++) {
       RenderToTextureInfo rtti;
       rtti.fragShader = "shader/bloom_downsample.frag";
       rtti.textureUniforms["texture0"] =
           level == 0 ? texBrightness : texDownsampled[level - 1];
       rtti.targetTexture = texDownsampled[level];
-      rtti.width = SCR_WIDTH >> (level + 1);
-      rtti.height = SCR_HEIGHT >> (level + 1);
+      rtti.width = renderWidth >> (level + 1);
+      rtti.height = renderHeight >> (level + 1);
+      if (rtti.width < 1) rtti.width = 1;
+      if (rtti.height < 1) rtti.height = 1;
       renderToTexture(rtti);
     }
 
@@ -288,34 +326,34 @@ int main(int, char **) {
       rtti.textureUniforms["texture1"] =
           level == 0 ? texBrightness : texDownsampled[level - 1];
       rtti.targetTexture = texUpsampled[level];
-      rtti.width = SCR_WIDTH >> level;
-      rtti.height = SCR_HEIGHT >> level;
+      rtti.width = renderWidth >> level;
+      rtti.height = renderHeight >> level;
+      if (rtti.width < 1) rtti.width = 1;
+      if (rtti.height < 1) rtti.height = 1;
       renderToTexture(rtti);
     }
 
-    static GLuint texBloomFinal = createColorTexture(SCR_WIDTH, SCR_HEIGHT);
     {
       RenderToTextureInfo rtti;
       rtti.fragShader = "shader/bloom_composite.frag";
       rtti.textureUniforms["texture0"] = texBlackhole;
       rtti.textureUniforms["texture1"] = texUpsampled[0];
       rtti.targetTexture = texBloomFinal;
-      rtti.width = SCR_WIDTH;
-      rtti.height = SCR_HEIGHT;
+      rtti.width = renderWidth;
+      rtti.height = renderHeight;
 
       IMGUI_SLIDER(bloomStrength, 0.1f, 0.0f, 1.0f);
 
       renderToTexture(rtti);
     }
 
-    static GLuint texTonemapped = createColorTexture(SCR_WIDTH, SCR_HEIGHT);
     {
       RenderToTextureInfo rtti;
       rtti.fragShader = "shader/tonemapping.frag";
       rtti.textureUniforms["texture0"] = texBloomFinal;
       rtti.targetTexture = texTonemapped;
-      rtti.width = SCR_WIDTH;
-      rtti.height = SCR_HEIGHT;
+      rtti.width = renderWidth;
+      rtti.height = renderHeight;
 
       IMGUI_TOGGLE(tonemappingEnabled, true);
       IMGUI_SLIDER(gamma, 2.5f, 1.0f, 4.0f);
@@ -323,18 +361,21 @@ int main(int, char **) {
       renderToTexture(rtti);
     }
 
-    passthrough.render(texTonemapped);
+    passthrough.render(texTonemapped, width, height);
 
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (kEnableImGui) {
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
 
     glfwSwapBuffers(window);
   }
 
-  // // Cleanup
-  // ImGui_ImplOpenGL3_Shutdown();
-  // ImGui_ImplGlfw_Shutdown();
-  // ImGui::DestroyContext();
+  if (kEnableImGui) {
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+  }
 
   glfwDestroyWindow(window);
   glfwTerminate();

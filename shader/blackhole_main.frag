@@ -142,7 +142,7 @@ float ringDistance(vec3 rayOrigin, vec3 rayDir, Ring ring) {
 
 vec3 panoramaColor(sampler2D tex, vec3 dir) {
   vec2 uv = vec2(0.5 - atan(dir.z, dir.x) / PI * 0.5, 0.5 - asin(dir.y) / PI);
-  return texture2D(tex, uv).rgb;
+  return texture(tex, uv).rgb;
 }
 
 vec3 accel(float h2, vec3 pos) {

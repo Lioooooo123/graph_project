@@ -1,2 +1,5 @@
 /build
+/build_local
+/build_run
 .vscode
+.DS_Store
