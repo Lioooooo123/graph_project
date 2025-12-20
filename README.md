@@ -2,23 +2,48 @@
 
 ![Screenshot](docs/blackhole-screenrecord.gif)
 
-## Prerequisite
+A real-time black hole visualization using ray marching in OpenGL/GLSL. Features include gravitational lensing, accretion disk rendering with volumetric noise, bloom post-processing, and an orbiting satellite.
 
-- [cmake](https://cmake.org/)
-- [conan](https://conan.io/) package manager [^1][^2]
+## Features
+
+- **Gravitational Lensing**: Physically-based light bending around the black hole
+- **Accretion Disk**: Volumetric rendering with simplex noise for realistic appearance
+- **Bloom Effect**: Multi-pass Gaussian bloom for HDR glow effects
+- **Satellite Model**: Procedurally generated 3D satellite orbiting the black hole
+- **Autopilot Camera**: Smooth Bezier curve camera animation (press `C` to toggle)
+
+## Prerequisites
+
+- [CMake](https://cmake.org/) 3.5+
+- [Conan](https://conan.io/) package manager (version 1.x recommended)[^1][^2]
+- OpenGL 3.3+ compatible GPU
 
 [^1]: You might need to configure [$HOME/.conan/conan.conf](https://docs.conan.io/en/latest/reference/config_files/conan.conf.html) and Conan [profiles](https://docs.conan.io/en/latest/reference/profiles.html) if the `default profile` is not generated due to different build environments on your distribution.
-[^2]: Conan 1.xx instead of conan 2.xx or higher is suggested in order to avoid unnecessary problems.
+[^2]: Conan 1.x instead of Conan 2.x or higher is suggested to avoid unnecessary problems.
 
-## Build the code
+## Building
 
 ```bash
-# Configure the project and generate a native build system.
+# Configure the project and generate a native build system
 cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
 
-# Compile / build the project.
+# Compile/build the project
 cmake --build build
 ```
+
+## Running
+
+```bash
+# Run the executable from the build directory
+./build/Blackhole
+```
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| `C` | Toggle autopilot camera animation |
+| `ESC` | Exit the application |
 
 ## Acknowledgements
 

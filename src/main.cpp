@@ -65,6 +65,20 @@ struct Mesh {
   GLsizei vertexCount = 0;
 };
 
+// 缓动函数：平滑的缓入缓出效果
+float easeInOutCubic(float t) {
+  return t < 0.5f ? 4.0f * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 3.0f) / 2.0f;
+}
+
+float easeInOutQuint(float t) {
+  return t < 0.5f ? 16.0f * t * t * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 5.0f) / 2.0f;
+}
+
+// 更平滑的缓动：结合 sine 和 cubic
+float easeInOutSine(float t) {
+  return -(cosf(3.14159265f * t) - 1.0f) / 2.0f;
+}
+
 glm::vec3 calculateBezierPoint(float t, const glm::vec3 &p0,
                                const glm::vec3 &p1, const glm::vec3 &p2,
                                const glm::vec3 &p3) {
@@ -75,6 +89,19 @@ glm::vec3 calculateBezierPoint(float t, const glm::vec3 &p0,
   float ttt = tt * t;
 
   return uuu * p0 + 3.0f * uu * t * p1 + 3.0f * u * tt * p2 + ttt * p3;
+}
+
+// 计算贝塞尔曲线在某点的切线方向（用于相机朝向）
+glm::vec3 calculateBezierTangent(float t, const glm::vec3 &p0,
+                                 const glm::vec3 &p1, const glm::vec3 &p2,
+                                 const glm::vec3 &p3) {
+  float u = 1.0f - t;
+  float uu = u * u;
+  float tt = t * t;
+  
+  glm::vec3 tangent = -3.0f * uu * p0 + 3.0f * uu * p1 - 6.0f * u * t * p1 
+                      - 3.0f * tt * p2 + 6.0f * u * t * p2 + 3.0f * tt * p3;
+  return glm::normalize(tangent);
 }
 
 Mesh createSatelliteMesh() {
@@ -360,13 +387,7 @@ void renderSatellite(const Mesh &mesh, GLuint program, const glm::mat4 &model,
   glUseProgram(0);
 }
 
-void mouseCallback(GLFWwindow *window, double x, double y) {
-  static float lastX = 400.0f;
-  static float lastY = 300.0f;
-  static float yaw = 0.0f;
-  static float pitch = 0.0f;
-  static float firstMouse = true;
-
+void mouseCallback(GLFWwindow * /*window*/, double x, double y) {
   mouseX = (float)x;
   mouseY = (float)y;
 }
@@ -450,8 +471,6 @@ int main(int argc, char **argv) {
     return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1); // Enable vsync
-  // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-  // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouseCallback);
   glfwSetWindowPos(window, 0, 0);
 
@@ -521,11 +540,13 @@ int main(int argc, char **argv) {
   bool autopilotActive = false;
   double autopilotT = 0.0;
   bool prevCKey = false;
-  const float autopilotDuration = 12.0f;
-  const glm::vec3 bezierP0 = glm::vec3(0.0f, 5.0f, 30.0f);
-  const glm::vec3 bezierP1 = glm::vec3(-10.0f, 8.0f, 18.0f);
-  const glm::vec3 bezierP2 = glm::vec3(6.0f, 4.0f, 12.0f);
-  const glm::vec3 bezierP3 = glm::vec3(0.0f, 1.5f, 6.0f);
+  const float autopilotDuration = 18.0f;  // 增加动画时长让动画更从容
+  
+  // 优化的贝塞尔曲线控制点 - 创建更优美的螺旋接近路径
+  const glm::vec3 bezierP0 = glm::vec3(25.0f, 12.0f, 25.0f);   // 起点：远处高位
+  const glm::vec3 bezierP1 = glm::vec3(-15.0f, 8.0f, 20.0f);   // 控制点1：绕到左侧
+  const glm::vec3 bezierP2 = glm::vec3(12.0f, 3.0f, 8.0f);     // 控制点2：绕到右侧低位
+  const glm::vec3 bezierP3 = glm::vec3(0.0f, 1.0f, 5.0f);      // 终点：靠近黑洞
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -631,7 +652,9 @@ int main(int argc, char **argv) {
       ImGui::SliderFloat("cameraRoll", &cameraRollDeg, -180.0f, 180.0f);
     }
 
-    glm::vec3 autopilotPos = calculateBezierPoint((float)autopilotT, bezierP0,
+    // 使用缓动函数让动画更平滑
+    float easedT = easeInOutCubic((float)autopilotT);
+    glm::vec3 autopilotPos = calculateBezierPoint(easedT, bezierP0,
                                                   bezierP1, bezierP2, bezierP3);
     CameraState cameraState = computeCameraState(
         now, renderWidth, renderHeight, mouseX, mouseY, mouseControlEnabled,
