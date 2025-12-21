@@ -12,8 +12,8 @@ GLuint loadTexture2D(const std::string &file, bool repeat) {
   int width, height, comp;
   unsigned char *data = stbi_load(file.c_str(), &width, &height, &comp, 0);
   if (data) {
-    GLenum format;
-    GLenum internalFormat;
+    GLenum format = GL_RGB;
+    GLenum internalFormat = GL_SRGB;
     if (comp == 1) {
       format = GL_RED;
       internalFormat = GL_RED;
@@ -23,6 +23,9 @@ GLuint loadTexture2D(const std::string &file, bool repeat) {
     } else if (comp == 4) {
       format = GL_RGBA;
       internalFormat = GL_SRGB_ALPHA;
+    } else {
+      std::cout << "WARNING: Unsupported image format with " << comp
+                << " components: " << file << std::endl;
     }
 
     glBindTexture(GL_TEXTURE_2D, textureID);

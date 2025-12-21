@@ -6,11 +6,22 @@ A real-time black hole visualization using ray marching in OpenGL/GLSL. Features
 
 ## Features
 
-- **Gravitational Lensing**: Physically-based light bending around the black hole
+- **Gravitational Lensing**: Physically-based light bending around the black hole using Schwarzschild metric approximation
 - **Accretion Disk**: Volumetric rendering with simplex noise for realistic appearance
 - **Bloom Effect**: Multi-pass Gaussian bloom for HDR glow effects
-- **Satellite Model**: Procedurally generated 3D satellite orbiting the black hole
-- **Autopilot Camera**: Smooth Bezier curve camera animation (press `C` to toggle)
+- **Satellite Model**: Procedurally generated 3D satellite with elliptical orbit around the black hole
+- **Autopilot Camera**: Smooth Bézier curve camera animation (press `C` to toggle)
+- **Tone Mapping**: ACES filmic tone mapping with gamma correction
+
+## Tech Stack
+
+- **C++17** with OpenGL 3.3+ / GLSL 330
+- **GLFW** - Window and input management
+- **GLEW** - OpenGL extension loading
+- **GLM** - Mathematics library (matrices, vectors)
+- **Dear ImGui** - Debug GUI (disabled by default)
+- **stb_image** - Image loading
+- **Conan** - Dependency management
 
 ## Prerequisites
 
@@ -44,6 +55,23 @@ cmake --build build
 |-----|--------|
 | `C` | Toggle autopilot camera animation |
 | `ESC` | Exit the application |
+| Mouse | Control camera view (when autopilot is off) |
+
+## Project Structure
+
+```
+├── src/                    # C++ source files
+│   ├── main.cpp            # Main application and render loop
+│   ├── render.cpp/h        # Framebuffer and render utilities
+│   ├── shader.cpp/h        # Shader compilation
+│   └── texture.cpp/h       # Texture loading
+├── shader/                 # GLSL shaders
+│   ├── blackhole_main.frag # Ray marching + gravitational lensing
+│   ├── satellite.*         # Satellite rendering
+│   ├── bloom_*.frag        # Bloom post-processing
+│   └── tonemapping.frag    # ACES tone mapping
+└── assets/                 # Skybox textures
+```
 
 ## Acknowledgements
 

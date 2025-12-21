@@ -40,7 +40,8 @@ static float mouseX, mouseY;
 
 static const bool kEnableImGui = false;
 static const int kMaxBloomIter = 5;
-static const float kRenderScale = 0.75f;  // Render at 75% resolution for performance
+static const float kRenderScale =
+    0.75f; // Render at 75% resolution for performance
 
 #define IMGUI_TOGGLE(NAME, DEFAULT)                                            \
   static bool NAME = DEFAULT;                                                  \
@@ -67,17 +68,17 @@ struct Mesh {
 
 // 缓动函数：平滑的缓入缓出效果
 float easeInOutCubic(float t) {
-  return t < 0.5f ? 4.0f * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 3.0f) / 2.0f;
+  return t < 0.5f ? 4.0f * t * t * t
+                  : 1.0f - powf(-2.0f * t + 2.0f, 3.0f) / 2.0f;
 }
 
 float easeInOutQuint(float t) {
-  return t < 0.5f ? 16.0f * t * t * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 5.0f) / 2.0f;
+  return t < 0.5f ? 16.0f * t * t * t * t * t
+                  : 1.0f - powf(-2.0f * t + 2.0f, 5.0f) / 2.0f;
 }
 
 // 更平滑的缓动：结合 sine 和 cubic
-float easeInOutSine(float t) {
-  return -(cosf(3.14159265f * t) - 1.0f) / 2.0f;
-}
+float easeInOutSine(float t) { return -(cosf(3.14159265f * t) - 1.0f) / 2.0f; }
 
 glm::vec3 calculateBezierPoint(float t, const glm::vec3 &p0,
                                const glm::vec3 &p1, const glm::vec3 &p2,
@@ -89,19 +90,6 @@ glm::vec3 calculateBezierPoint(float t, const glm::vec3 &p0,
   float ttt = tt * t;
 
   return uuu * p0 + 3.0f * uu * t * p1 + 3.0f * u * tt * p2 + ttt * p3;
-}
-
-// 计算贝塞尔曲线在某点的切线方向（用于相机朝向）
-glm::vec3 calculateBezierTangent(float t, const glm::vec3 &p0,
-                                 const glm::vec3 &p1, const glm::vec3 &p2,
-                                 const glm::vec3 &p3) {
-  float u = 1.0f - t;
-  float uu = u * u;
-  float tt = t * t;
-  
-  glm::vec3 tangent = -3.0f * uu * p0 + 3.0f * uu * p1 - 6.0f * u * t * p1 
-                      - 3.0f * tt * p2 + 6.0f * u * t * p2 + 3.0f * tt * p3;
-  return glm::normalize(tangent);
 }
 
 Mesh createSatelliteMesh() {
@@ -123,7 +111,8 @@ Mesh createSatelliteMesh() {
     vertices.push_back({d, n});
   };
 
-  auto addTri = [&](const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c) {
+  auto addTri = [&](const glm::vec3 &a, const glm::vec3 &b,
+                    const glm::vec3 &c) {
     glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
     vertices.push_back({a, n});
     vertices.push_back({b, n});
@@ -150,7 +139,8 @@ Mesh createSatelliteMesh() {
   };
 
   // Helper to add a cylinder along Y axis
-  auto addCylinder = [&](const glm::vec3 &base, float radius, float height, int segments) {
+  auto addCylinder = [&](const glm::vec3 &base, float radius, float height,
+                         int segments) {
     for (int i = 0; i < segments; i++) {
       float a0 = 2.0f * 3.14159f * i / segments;
       float a1 = 2.0f * 3.14159f * (i + 1) / segments;
@@ -168,7 +158,8 @@ Mesh createSatelliteMesh() {
   };
 
   // Helper to add a cone along Y axis
-  auto addCone = [&](const glm::vec3 &base, float radius, float height, int segments) {
+  auto addCone = [&](const glm::vec3 &base, float radius, float height,
+                     int segments) {
     glm::vec3 tip = base + glm::vec3(0, height, 0);
     for (int i = 0; i < segments; i++) {
       float a0 = 2.0f * 3.14159f * i / segments;
@@ -189,8 +180,10 @@ Mesh createSatelliteMesh() {
   for (int i = 0; i < bodySides; i++) {
     float a0 = 2.0f * 3.14159f * i / bodySides;
     float a1 = 2.0f * 3.14159f * (i + 1) / bodySides;
-    glm::vec3 p0 = bodyBase + glm::vec3(cos(a0) * bodyRadius, 0, sin(a0) * bodyRadius);
-    glm::vec3 p1 = bodyBase + glm::vec3(cos(a1) * bodyRadius, 0, sin(a1) * bodyRadius);
+    glm::vec3 p0 =
+        bodyBase + glm::vec3(cos(a0) * bodyRadius, 0, sin(a0) * bodyRadius);
+    glm::vec3 p1 =
+        bodyBase + glm::vec3(cos(a1) * bodyRadius, 0, sin(a1) * bodyRadius);
     glm::vec3 p2 = p1 + glm::vec3(0, bodyHeight, 0);
     glm::vec3 p3 = p0 + glm::vec3(0, bodyHeight, 0);
     addFace(p0, p1, p2, p3);
@@ -212,30 +205,42 @@ Mesh createSatelliteMesh() {
   float panelX = -1.15f;
   float panelWidth = 0.75f;
   float panelHeight = 0.45f;
-  addBox(glm::vec3(panelX, 0.0f, 0.0f), glm::vec3(panelWidth, 0.02f, panelHeight));
+  addBox(glm::vec3(panelX, 0.0f, 0.0f),
+         glm::vec3(panelWidth, 0.02f, panelHeight));
   // Panel frame edges
-  addBox(glm::vec3(panelX, 0.025f, panelHeight - 0.02f), glm::vec3(panelWidth, 0.015f, 0.02f));
-  addBox(glm::vec3(panelX, 0.025f, -panelHeight + 0.02f), glm::vec3(panelWidth, 0.015f, 0.02f));
-  addBox(glm::vec3(panelX - panelWidth + 0.02f, 0.025f, 0.0f), glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
-  addBox(glm::vec3(panelX + panelWidth - 0.02f, 0.025f, 0.0f), glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
+  addBox(glm::vec3(panelX, 0.025f, panelHeight - 0.02f),
+         glm::vec3(panelWidth, 0.015f, 0.02f));
+  addBox(glm::vec3(panelX, 0.025f, -panelHeight + 0.02f),
+         glm::vec3(panelWidth, 0.015f, 0.02f));
+  addBox(glm::vec3(panelX - panelWidth + 0.02f, 0.025f, 0.0f),
+         glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
+  addBox(glm::vec3(panelX + panelWidth - 0.02f, 0.025f, 0.0f),
+         glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
   // Panel grid lines
   for (int i = 1; i < 4; i++) {
     float offset = panelX - panelWidth + (2.0f * panelWidth * i / 4.0f);
-    addBox(glm::vec3(offset, 0.022f, 0.0f), glm::vec3(0.008f, 0.008f, panelHeight - 0.03f));
+    addBox(glm::vec3(offset, 0.022f, 0.0f),
+           glm::vec3(0.008f, 0.008f, panelHeight - 0.03f));
   }
 
   // Right panel - main frame
   panelX = 1.15f;
-  addBox(glm::vec3(panelX, 0.0f, 0.0f), glm::vec3(panelWidth, 0.02f, panelHeight));
+  addBox(glm::vec3(panelX, 0.0f, 0.0f),
+         glm::vec3(panelWidth, 0.02f, panelHeight));
   // Panel frame edges
-  addBox(glm::vec3(panelX, 0.025f, panelHeight - 0.02f), glm::vec3(panelWidth, 0.015f, 0.02f));
-  addBox(glm::vec3(panelX, 0.025f, -panelHeight + 0.02f), glm::vec3(panelWidth, 0.015f, 0.02f));
-  addBox(glm::vec3(panelX - panelWidth + 0.02f, 0.025f, 0.0f), glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
-  addBox(glm::vec3(panelX + panelWidth - 0.02f, 0.025f, 0.0f), glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
+  addBox(glm::vec3(panelX, 0.025f, panelHeight - 0.02f),
+         glm::vec3(panelWidth, 0.015f, 0.02f));
+  addBox(glm::vec3(panelX, 0.025f, -panelHeight + 0.02f),
+         glm::vec3(panelWidth, 0.015f, 0.02f));
+  addBox(glm::vec3(panelX - panelWidth + 0.02f, 0.025f, 0.0f),
+         glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
+  addBox(glm::vec3(panelX + panelWidth - 0.02f, 0.025f, 0.0f),
+         glm::vec3(0.02f, 0.015f, panelHeight - 0.02f));
   // Panel grid lines
   for (int i = 1; i < 4; i++) {
     float offset = panelX - panelWidth + (2.0f * panelWidth * i / 4.0f);
-    addBox(glm::vec3(offset, 0.022f, 0.0f), glm::vec3(0.008f, 0.008f, panelHeight - 0.03f));
+    addBox(glm::vec3(offset, 0.022f, 0.0f),
+           glm::vec3(0.008f, 0.008f, panelHeight - 0.03f));
   }
 
   // ========== ANTENNA DISH ==========
@@ -260,7 +265,8 @@ Mesh createSatelliteMesh() {
   addCone(glm::vec3(thrusterOffset, -0.25f, thrusterOffset), 0.04f, -0.08f, 8);
   addCone(glm::vec3(-thrusterOffset, -0.25f, thrusterOffset), 0.04f, -0.08f, 8);
   addCone(glm::vec3(thrusterOffset, -0.25f, -thrusterOffset), 0.04f, -0.08f, 8);
-  addCone(glm::vec3(-thrusterOffset, -0.25f, -thrusterOffset), 0.04f, -0.08f, 8);
+  addCone(glm::vec3(-thrusterOffset, -0.25f, -thrusterOffset), 0.04f, -0.08f,
+          8);
 
   // ========== SENSOR EQUIPMENT ==========
   // Front sensor package
@@ -350,13 +356,86 @@ CameraState computeCameraState(double timeSeconds, int width, int height,
   return cs;
 }
 
-glm::mat4 computeSatelliteModel(double timeSeconds, const glm::vec3 &worldPos) {
-  const float selfSpinSpeed = 0.8f;
+// 计算卫星在椭圆轨道上的位置和朝向
+struct SatelliteState {
+  glm::vec3 position;
+  glm::vec3 velocity; // 用于计算朝向
+};
+
+SatelliteState computeSatelliteOrbit(double timeSeconds) {
+  // 椭圆轨道参数
+  const float semiMajorAxis = 5.5f;       // 半长轴
+  const float eccentricity = 0.3f;        // 离心率
+  const float inclination = 15.0f;        // 轨道倾角（度）
+  const float orbitSpeed = 0.15f;         // 轨道角速度
+  const float verticalOscillation = 0.8f; // 垂直振荡幅度
+  const float verticalFreq = 0.4f;        // 垂直振荡频率
+
+  float angle = (float)(timeSeconds * orbitSpeed);
+
+  // 椭圆轨道半径 r = a(1-e²) / (1 + e*cos(θ))
+  float r = semiMajorAxis * (1.0f - eccentricity * eccentricity) /
+            (1.0f + eccentricity * cos(angle));
+
+  // 基础椭圆位置
+  float x = r * cos(angle);
+  float z = r * sin(angle);
+
+  // 添加轨道倾角
+  float incRad = glm::radians(inclination);
+  float y = z * sin(incRad) +
+            verticalOscillation * sin((float)timeSeconds * verticalFreq);
+  z = z * cos(incRad);
+
+  // 计算速度方向（用于卫星朝向）
+  float nextAngle = angle + 0.01f;
+  float nextR = semiMajorAxis * (1.0f - eccentricity * eccentricity) /
+                (1.0f + eccentricity * cos(nextAngle));
+  float nextX = nextR * cos(nextAngle);
+  float nextZ = nextR * sin(nextAngle);
+  float nextY =
+      nextZ * sin(incRad) +
+      verticalOscillation * sin((float)(timeSeconds + 0.01) * verticalFreq);
+  nextZ = nextZ * cos(incRad);
+
+  SatelliteState state;
+  state.position = glm::vec3(x, y, z);
+  state.velocity = glm::normalize(glm::vec3(nextX - x, nextY - y, nextZ - z));
+  return state;
+}
+
+glm::mat4 computeSatelliteModel(double timeSeconds, const glm::vec3 &worldPos,
+                                const glm::vec3 &velocity) {
+  const float selfSpinSpeed = 1.2f; // 自转速度
+  const float wobbleAmount = 5.0f;  // 轻微摇摆幅度（度）
+  const float wobbleSpeed = 2.0f;
 
   glm::mat4 model = glm::translate(glm::mat4(1.0f), worldPos);
-  model = glm::rotate(model, glm::radians(-10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+  // 计算卫星朝向运动方向的旋转
+  glm::vec3 forward = velocity;
+  glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+  glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
+  glm::vec3 up = glm::cross(forward, right);
+
+  // 构建朝向矩阵
+  glm::mat4 orientation = glm::mat4(1.0f);
+  orientation[0] = glm::vec4(right, 0.0f);
+  orientation[1] = glm::vec4(up, 0.0f);
+  orientation[2] = glm::vec4(forward, 0.0f);
+
+  model = model * orientation;
+
+  // 添加轻微摇摆
+  float wobble = wobbleAmount * sin((float)timeSeconds * wobbleSpeed);
+  model = glm::rotate(model, glm::radians(wobble), glm::vec3(1.0f, 0.0f, 0.0f));
+  model = glm::rotate(model, glm::radians(wobble * 0.7f),
+                      glm::vec3(0.0f, 0.0f, 1.0f));
+
+  // 太阳能板自转（绕自身Y轴）
   model = glm::rotate(model, (float)(timeSeconds * selfSpinSpeed),
                       glm::vec3(0.0f, 1.0f, 0.0f));
+
   model = glm::scale(model, glm::vec3(0.18f));
   return model;
 }
@@ -540,13 +619,15 @@ int main(int argc, char **argv) {
   bool autopilotActive = false;
   double autopilotT = 0.0;
   bool prevCKey = false;
-  const float autopilotDuration = 18.0f;  // 增加动画时长让动画更从容
-  
+  const float autopilotDuration = 18.0f; // 增加动画时长让动画更从容
+
   // 优化的贝塞尔曲线控制点 - 创建更优美的螺旋接近路径
-  const glm::vec3 bezierP0 = glm::vec3(25.0f, 12.0f, 25.0f);   // 起点：远处高位
-  const glm::vec3 bezierP1 = glm::vec3(-15.0f, 8.0f, 20.0f);   // 控制点1：绕到左侧
-  const glm::vec3 bezierP2 = glm::vec3(12.0f, 3.0f, 8.0f);     // 控制点2：绕到右侧低位
-  const glm::vec3 bezierP3 = glm::vec3(0.0f, 1.0f, 5.0f);      // 终点：靠近黑洞
+  const glm::vec3 bezierP0 = glm::vec3(25.0f, 12.0f, 25.0f); // 起点：远处高位
+  const glm::vec3 bezierP1 =
+      glm::vec3(-15.0f, 8.0f, 20.0f); // 控制点1：绕到左侧
+  const glm::vec3 bezierP2 =
+      glm::vec3(12.0f, 3.0f, 8.0f); // 控制点2：绕到右侧低位
+  const glm::vec3 bezierP3 = glm::vec3(0.0f, 1.0f, 5.0f); // 终点：靠近黑洞
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -595,14 +676,17 @@ int main(int argc, char **argv) {
     static GLuint texUpsampled[kMaxBloomIter] = {};
     static GLuint texBloomFinal = 0;
     static GLuint texTonemapped = 0;
-    
+
     // Use scaled resolution for expensive ray marching pass
     int scaledWidth = (int)(width * kRenderScale);
     int scaledHeight = (int)(height * kRenderScale);
-    if (scaledWidth < 1) scaledWidth = 1;
-    if (scaledHeight < 1) scaledHeight = 1;
-    
-    if (scaledWidth != renderWidth || scaledHeight != renderHeight || texBlackhole == 0) {
+    if (scaledWidth < 1)
+      scaledWidth = 1;
+    if (scaledHeight < 1)
+      scaledHeight = 1;
+
+    if (scaledWidth != renderWidth || scaledHeight != renderHeight ||
+        texBlackhole == 0) {
       renderWidth = scaledWidth;
       renderHeight = scaledHeight;
       SCR_WIDTH = width;
@@ -654,8 +738,8 @@ int main(int argc, char **argv) {
 
     // 使用缓动函数让动画更平滑
     float easedT = easeInOutCubic((float)autopilotT);
-    glm::vec3 autopilotPos = calculateBezierPoint(easedT, bezierP0,
-                                                  bezierP1, bezierP2, bezierP3);
+    glm::vec3 autopilotPos =
+        calculateBezierPoint(easedT, bezierP0, bezierP1, bezierP2, bezierP3);
     CameraState cameraState = computeCameraState(
         now, renderWidth, renderHeight, mouseX, mouseY, mouseControlEnabled,
         frontView, topView, cameraRollDeg, fovScale, autopilotActive,
@@ -716,8 +800,7 @@ int main(int argc, char **argv) {
       }
 
       int textureUnit = 0;
-      auto bindTexture = [&](const std::string &name, GLuint tex,
-                             GLenum type) {
+      auto bindTexture = [&](const std::string &name, GLuint tex, GLenum type) {
         GLint loc = glGetUniformLocation(blackholeProgram, name.c_str());
         if (loc != -1) {
           glUniform1i(loc, textureUnit);
@@ -741,9 +824,10 @@ int main(int argc, char **argv) {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
-    glm::vec3 satellitePos = glm::vec3(2.0f, -1.0f, -3.0f);
-    glm::mat4 satelliteModel = computeSatelliteModel(now, satellitePos);
-    glm::vec3 lightDir = glm::normalize(-satellitePos);
+    SatelliteState satState = computeSatelliteOrbit(now);
+    glm::mat4 satelliteModel =
+        computeSatelliteModel(now, satState.position, satState.velocity);
+    glm::vec3 lightDir = glm::normalize(-satState.position);
     renderSatellite(satelliteMesh, satelliteProgram, satelliteModel,
                     cameraState.view, cameraState.projection, cameraState.pos,
                     lightDir);
@@ -762,7 +846,8 @@ int main(int argc, char **argv) {
       renderToTexture(rtti);
     }
 
-    static int bloomIterations = 5;  // Reduced from kMaxBloomIter for performance
+    static int bloomIterations =
+        5; // Reduced from kMaxBloomIter for performance
     if (kEnableImGui) {
       ImGui::SliderInt("bloomIterations", &bloomIterations, 1, kMaxBloomIter);
     }

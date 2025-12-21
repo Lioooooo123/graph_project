@@ -3,20 +3,20 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include <GL/glew.h>
 
 static std::string readFile(const std::string &file) {
-  std::string VertexShaderCode;
   std::ifstream ifs(file, std::ios::in);
   if (ifs.is_open()) {
     std::stringstream ss;
     ss << ifs.rdbuf();
     return ss.str();
   } else {
-    throw "Failed to open file: " + file;
+    throw std::runtime_error("Failed to open file: " + file);
   }
 }
 
@@ -43,7 +43,7 @@ static GLuint compileShader(const std::string &shaderSource,
     std::string log(infoLog.data(), infoLog.data() + maxLength);
     std::cerr << "Shader compile error: " << log << std::endl;
     glDeleteShader(shader);
-    throw "Failed to compile the shader.";
+    throw std::runtime_error("Failed to compile shader: " + log);
   }
 
   return shader;
@@ -71,15 +71,14 @@ GLuint createShaderProgram(const std::string &vertexShaderFile,
   GLint isLinked = GL_FALSE;
   glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
   if (isLinked == GL_FALSE) {
-    int maxLength;
+    int maxLength = 0;
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
-    if (maxLength > 0) {
-      std::vector<GLchar> infoLog(maxLength > 1 ? maxLength : 1);
-      glGetProgramInfoLog(program, maxLength, NULL, infoLog.data());
-      std::string log(infoLog.data(), infoLog.data() + maxLength);
-      std::cerr << "Shader link error: " << log << std::endl;
-      throw "Failed to link the shader.";
-    }
+    std::vector<GLchar> infoLog(maxLength > 1 ? maxLength : 1);
+    glGetProgramInfoLog(program, maxLength, NULL, infoLog.data());
+    std::string log(infoLog.data(), infoLog.data() + maxLength);
+    std::cerr << "Shader link error: " << log << std::endl;
+    glDeleteProgram(program);
+    throw std::runtime_error("Failed to link shader program: " + log);
   }
 
   // Detach shaders after a successful link.
