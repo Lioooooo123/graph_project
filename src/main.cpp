@@ -599,7 +599,7 @@ int main(int argc, char **argv) {
 
   // Create window with graphics context (windowed)
   GLFWwindow *window =
-      glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Wormhole", NULL, NULL);
+      glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "UNMANNED STARRY SKY", NULL, NULL);
   if (window == NULL)
     return 1;
   glfwMakeContextCurrent(window);
@@ -666,18 +666,29 @@ int main(int argc, char **argv) {
   GLuint blackholeProgram =
       createShaderProgram("shader/simple.vert", "shader/blackhole_main.frag");
 
-  // Bezier Surface Setup
-  Mesh bezierMesh = createBezierSurfaceMesh(40, 40);
-  GLuint bezierProgram = createShaderProgram("shader/bezier_surface.vert", "shader/bezier_surface.frag");
+  // Spacetime Curvature Grid (Gravity Well) Setup
+  Mesh gridMesh = createBezierSurfaceMesh(80, 80);
+  GLuint gridProgram = createShaderProgram("shader/grid.vert", "shader/grid.frag");
 
-  // 4x4 Control Points for a "Warped Sheet"
+  // 4x4 Control Points for "Spacetime Curvature Grid" (Gravity Well)
+  // Grid spans from -25 to +25 in X and Z, flat plane at y = -5.0
+  // Center 4 control points pulled down to simulate gravity well
   glm::vec3 controlPoints[16];
-  for(int i=0; i<4; i++) {
-      for(int j=0; j<4; j++) {
-          float x = (i - 1.5f) * 5.0f;
-          float z = (j - 1.5f) * 5.0f;
-          float y = ((i-1.5f)*(j-1.5f)) * 0.5f; // Saddle shape
-          controlPoints[i*4+j] = glm::vec3(x, y, z);
+  for (int i = 0; i < 4; i++) {
+      for (int j = 0; j < 4; j++) {
+          // Map control point indices (0-3) to range -25 to +25
+          float x = (i / 3.0f) * 50.0f - 25.0f;
+          float z = (j / 3.0f) * 50.0f - 25.0f;
+          float y = -5.0f;  // Base height
+
+          // Pull down center 4 control points (indices 1,2 in both directions)
+          bool isCenterX = (i == 1 || i == 2);
+          bool isCenterZ = (j == 1 || j == 2);
+          if (isCenterX && isCenterZ) {
+              y = -15.0f;  // Deep gravity well (10 units lower)
+          }
+
+          controlPoints[i * 4 + j] = glm::vec3(x, y, z);
       }
   }
 
@@ -700,6 +711,11 @@ int main(int argc, char **argv) {
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
+
+    // ESC key to exit
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+      glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
 
     double now = glfwGetTime();
     double deltaTime = now - lastFrameTime;
@@ -932,7 +948,7 @@ int main(int argc, char **argv) {
       rtti.floatUniforms["mouseX"] = mouseX;
       rtti.floatUniforms["mouseY"] = mouseY;
 
-      IMGUI_TOGGLE(gravatationalLensing, true);
+      IMGUI_TOGGLE(gravitationalLensing, true);
       IMGUI_TOGGLE(renderBlackHole, true);
       IMGUI_TOGGLE(adiskEnabled, true);
       IMGUI_TOGGLE(adiskParticle, true);
@@ -1012,7 +1028,35 @@ int main(int argc, char **argv) {
                     cameraState.view, cameraState.projection, cameraState.pos,
                     lightDir, galaxy, dishAngle, (float)now);
 
-    // Bezier Surface removed per user request
+    // === Spacetime Curvature Grid (Gravity Well) - Wireframe Mode ===
+    {
+        glUseProgram(gridProgram);
+
+        // Set uniforms
+        glm::mat4 gridModel = glm::mat4(1.0f);  // Identity, no transformation
+        glUniformMatrix4fv(glGetUniformLocation(gridProgram, "model"), 1, GL_FALSE, glm::value_ptr(gridModel));
+        glUniformMatrix4fv(glGetUniformLocation(gridProgram, "view"), 1, GL_FALSE, glm::value_ptr(cameraState.view));
+        glUniformMatrix4fv(glGetUniformLocation(gridProgram, "projection"), 1, GL_FALSE, glm::value_ptr(cameraState.projection));
+        glUniform3fv(glGetUniformLocation(gridProgram, "controlPoints"), 16, glm::value_ptr(controlPoints[0]));
+
+        // Enable wireframe mode
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+        // Enable blending for transparency
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // Draw the grid mesh
+        glBindVertexArray(gridMesh.vao);
+        glDrawArrays(GL_TRIANGLES, 0, gridMesh.vertexCount);
+        glBindVertexArray(0);
+
+        // Restore fill mode immediately (so it doesn't affect black hole)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glDisable(GL_BLEND);
+
+        glUseProgram(0);
+    }
 
     // --- Step 4: release FBO and move into the bloom chain
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

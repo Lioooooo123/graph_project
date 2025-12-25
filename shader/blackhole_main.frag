@@ -18,7 +18,7 @@ uniform float frontView = 0.0;
 uniform float topView = 0.0;
 uniform float cameraRoll = 0.0;
 
-uniform float gravatationalLensing = 1.0;
+uniform float gravitationalLensing = 1.0;
 uniform float renderBlackHole = 1.0;
 uniform float mouseControl = 0.0;
 uniform float fovScale = 1.0;
@@ -348,8 +348,8 @@ vec3 traceColor(vec3 pos, vec3 dir) {
     if (i >= maxIter) break;  // Early exit for distant rays
 
     if (renderBlackHole > 0.5) {
-      // If gravatational lensing is applied
-      if (gravatationalLensing > 0.5) {
+      // If gravitational lensing is applied
+      if (gravitationalLensing > 0.5) {
         vec3 acc = accel(h2, pos);
         dir += acc;
       }

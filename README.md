@@ -1,4 +1,4 @@
-# Real-time Black Hole Rendering in OpenGL
+# UNMANNED STARRY SKY - Real-time Black Hole Rendering
 
 ![Screenshot](docs/blackhole-screenrecord.gif)
 
@@ -8,10 +8,13 @@ A real-time black hole visualization using ray marching in OpenGL/GLSL. Features
 
 - **Gravitational Lensing**: Physically-based light bending around the black hole using Schwarzschild metric approximation
 - **Accretion Disk**: Volumetric rendering with simplex noise for realistic appearance
+- **Spacetime Curvature Grid**: Bézier surface visualization of gravity well distortion around the black hole
 - **Bloom Effect**: Multi-pass Gaussian bloom for HDR glow effects
-- **Satellite Model**: Procedurally generated 3D satellite with elliptical orbit around the black hole
+- **Satellite Model**: Procedurally generated 3D satellite with elliptical orbit and animated indicator lights
+- **Professional HUD**: Real-time telemetry display including distance, time dilation, and gravitational force
 - **Autopilot Camera**: Smooth Bézier curve camera animation (press `C` to toggle)
 - **Tone Mapping**: ACES filmic tone mapping with gamma correction
+- **Lens Flare**: Cinematic lens flare and vignette effects
 
 ## Tech Stack
 
@@ -67,10 +70,11 @@ cmake --build build
 │   └── texture.cpp/h       # Texture loading
 ├── shader/                 # GLSL shaders
 │   ├── blackhole_main.frag # Ray marching + gravitational lensing
-│   ├── satellite.*         # Satellite rendering
-│   ├── bloom_*.frag        # Bloom post-processing
+│   ├── satellite.*         # Satellite rendering with PBR lighting
+│   ├── grid.*              # Bézier surface spacetime curvature grid
+│   ├── bloom_*.frag        # Bloom post-processing pipeline
 │   └── tonemapping.frag    # ACES tone mapping
-└── assets/                 # Skybox textures
+└── assets/                 # Skybox textures and color maps
 ```
 
 ## Acknowledgements
