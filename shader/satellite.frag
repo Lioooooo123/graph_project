@@ -10,6 +10,10 @@ uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform vec3 rimColor;
 uniform float rimStrength;
+uniform float time; // For animated effects
+
+// NEW: Environment map for reflections
+uniform samplerCube galaxy;
 
 // Material colors
 const vec3 kGoldAlbedo = vec3(1.0, 0.85, 0.4);
@@ -66,8 +70,8 @@ void main() {
     } else {
         // Main body - gold foil
         baseColor = kGoldAlbedo;
-        metallic = 0.85;
-        roughness = 0.25;
+        metallic = 0.95; // Increased metallic for better reflections
+        roughness = 0.15; // Smoother for better reflections
     }
 
     // Lighting calculations
@@ -95,19 +99,66 @@ void main() {
         baseColor += vec3(0.0, 0.02, 0.08) * panelReflect;
     }
 
+    // Environment Reflection
+    vec3 reflectionDir = reflect(-v, n);
+    // Simple box-correction could be added if we had bounds, but for infinity skybox this is fine
+    // Sample texture LOD based on roughness (simulated by mixing or if extension supported)
+    vec3 envColor = texture(galaxy, reflectionDir).rgb;
+
+    // Tone down environment map a bit so it doesn't overwhelm
+    envColor *= 1.5;
+
     // Combine lighting
-    vec3 specularColor = mix(vec3(0.04), baseColor, metallic);
-    vec3 color = baseColor * diff * (1.0 - metallic * 0.5);
-    color += specularColor * spec;
+    // F0 for dielectrics is around 0.04, for metals it is the albedo
+    vec3 F0 = mix(vec3(0.04), baseColor, metallic);
+    vec3 kS = mix(vec3(pow(1.0 - roughness, 2.0)), F0, metallic); // Specular reflection amount
+    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic); // Diffuse amount
+
+    vec3 diffusePortion = baseColor * diff * kD;
+    vec3 specularPortion = (envColor * kS) + (lightColor * spec); // simplified IBL + analytic spec
+
+    // Add rim
+    // rim should be additive
+
+    vec3 color = diffusePortion + specularPortion;
     color += rimColor * rim * (0.5 + metallic * 0.5);
     color *= lightColor;
 
-    // Ambient
-    color += baseColor * 0.04;
+    // Ambient (simplified IBL ambient)
+    color += baseColor * 0.02 * envColor;
 
-    // Add slight emission to antenna tips
+    // ========== ANIMATED INDICATOR LIGHTS ==========
+
+    // Blue beacon light on antenna tips (fast blink)
     if (isAntenna && absY > 0.45) {
-        color += vec3(0.1, 0.15, 0.2) * 0.5;
+        float blueBlink = smoothstep(0.4, 0.6, sin(time * 6.0) * 0.5 + 0.5);
+        color += vec3(0.3, 0.7, 1.0) * 3.0 * blueBlink;
+    }
+
+    // Red warning light on body corners (slow pulse)
+    bool isCorner = absX > 0.25 && absZ > 0.25 && absY < 0.1 && absY > -0.1;
+    if (isCorner) {
+        float redPulse = smoothstep(0.3, 0.7, sin(time * 2.0) * 0.5 + 0.5);
+        color += vec3(1.0, 0.1, 0.05) * 2.5 * redPulse;
+    }
+
+    // Green status light on sensor package (steady with occasional flicker)
+    if (isSensor && absZ > 0.4) {
+        float greenFlicker = 0.7 + 0.3 * sin(time * 15.0 + sin(time * 3.0) * 5.0);
+        color += vec3(0.1, 1.0, 0.3) * 1.5 * greenFlicker;
+    }
+
+    // White strobe on solar panel tips (very fast strobe)
+    bool isPanelTip = absX > 1.8 && absY < 0.05;
+    if (isPanelTip) {
+        float strobe = step(0.9, fract(time * 4.0));
+        color += vec3(1.0, 1.0, 1.0) * 4.0 * strobe;
+    }
+
+    // Thruster glow (orange pulsing when active)
+    if (isThruster && vLocalPos.y < -0.28) {
+        float thrusterGlow = 0.3 + 0.7 * (sin(time * 8.0) * 0.5 + 0.5);
+        color += vec3(1.0, 0.5, 0.1) * 2.0 * thrusterGlow;
     }
 
     FragColor = vec4(color, 1.0);

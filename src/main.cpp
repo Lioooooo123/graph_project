@@ -38,7 +38,7 @@ static int SCR_HEIGHT = 1080;
 
 static float mouseX, mouseY;
 
-static const bool kEnableImGui = false;
+static const bool kEnableImGui = true;
 static const int kMaxBloomIter = 5;
 static const float kRenderScale =
     0.75f; // Render at 75% resolution for performance
@@ -305,6 +305,47 @@ Mesh createSatelliteMesh() {
   return mesh;
 }
 
+Mesh createBezierSurfaceMesh(int uSteps, int vSteps) {
+  std::vector<glm::vec3> vertices;
+  for (int i = 0; i < uSteps; i++) {
+    for (int j = 0; j < vSteps; j++) {
+      float u0 = (float)i / uSteps;
+      float u1 = (float)(i + 1) / uSteps;
+      float v0 = (float)j / vSteps;
+      float v1 = (float)(j + 1) / vSteps;
+
+      // Two triangles per quad.
+      // Z component is unused here as UV are passed in X,Y. Shader evaluates position.
+      vertices.push_back({u0, v0, 0.0f});
+      vertices.push_back({u1, v0, 0.0f});
+      vertices.push_back({u0, v1, 0.0f});
+
+      vertices.push_back({u1, v0, 0.0f});
+      vertices.push_back({u1, v1, 0.0f});
+      vertices.push_back({u0, v1, 0.0f});
+    }
+  }
+
+  GLuint vao, vbo;
+  glGenVertexArrays(1, &vao);
+  glGenBuffers(1, &vbo);
+
+  glBindVertexArray(vao);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3),
+               vertices.data(), GL_STATIC_DRAW);
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void *)0);
+
+  glBindVertexArray(0);
+
+  Mesh mesh;
+  mesh.vao = vao;
+  mesh.vertexCount = (GLsizei)vertices.size();
+  return mesh;
+}
+
 struct CameraState {
   glm::vec3 pos;
   glm::vec3 target;
@@ -440,9 +481,12 @@ glm::mat4 computeSatelliteModel(double timeSeconds, const glm::vec3 &worldPos,
   return model;
 }
 
+
+
 void renderSatellite(const Mesh &mesh, GLuint program, const glm::mat4 &model,
                      const glm::mat4 &view, const glm::mat4 &projection,
-                     const glm::vec3 &cameraPos, const glm::vec3 &lightDir) {
+                     const glm::vec3 &cameraPos, const glm::vec3 &lightDir,
+                     GLuint galaxyCubemap, float dishAngle, float time) {
   glUseProgram(program);
 
   glUniformMatrix4fv(glGetUniformLocation(program, "model"), 1, GL_FALSE,
@@ -458,6 +502,16 @@ void renderSatellite(const Mesh &mesh, GLuint program, const glm::mat4 &model,
   glUniform3f(glGetUniformLocation(program, "lightColor"), 1.0f, 0.95f, 0.85f);
   glUniform3f(glGetUniformLocation(program, "rimColor"), 1.4f, 1.2f, 0.95f);
   glUniform1f(glGetUniformLocation(program, "rimStrength"), 1.35f);
+
+  // Time for animated effects (blinking lights, etc.)
+  glUniform1f(glGetUniformLocation(program, "time"), time);
+
+  glUniform1f(glGetUniformLocation(program, "dishRotation"), dishAngle);
+
+  // Bind Cubemap
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, galaxyCubemap);
+  glUniform1i(glGetUniformLocation(program, "galaxy"), 0);
 
   glBindVertexArray(mesh.vao);
   glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
@@ -612,6 +666,21 @@ int main(int argc, char **argv) {
   GLuint blackholeProgram =
       createShaderProgram("shader/simple.vert", "shader/blackhole_main.frag");
 
+  // Bezier Surface Setup
+  Mesh bezierMesh = createBezierSurfaceMesh(40, 40);
+  GLuint bezierProgram = createShaderProgram("shader/bezier_surface.vert", "shader/bezier_surface.frag");
+
+  // 4x4 Control Points for a "Warped Sheet"
+  glm::vec3 controlPoints[16];
+  for(int i=0; i<4; i++) {
+      for(int j=0; j<4; j++) {
+          float x = (i - 1.5f) * 5.0f;
+          float z = (j - 1.5f) * 5.0f;
+          float y = ((i-1.5f)*(j-1.5f)) * 0.5f; // Saddle shape
+          controlPoints[i*4+j] = glm::vec3(x, y, z);
+      }
+  }
+
   // Main loop
   PostProcessPass passthrough("shader/passthrough.frag");
 
@@ -636,6 +705,7 @@ int main(int argc, char **argv) {
     double deltaTime = now - lastFrameTime;
     lastFrameTime = now;
 
+    // Camera mode controls
     bool cPressed = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
     if (cPressed && !prevCKey) {
       autopilotActive = !autopilotActive;
@@ -643,6 +713,14 @@ int main(int argc, char **argv) {
         autopilotT = 0.0;
     }
     prevCKey = cPressed;
+
+    // Number keys for preset camera views
+    static int cameraPreset = 0;
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) cameraPreset = 1;
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) cameraPreset = 2;
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) cameraPreset = 3;
+    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) cameraPreset = 4;
+    if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS) cameraPreset = 0;
 
     if (autopilotActive) {
       autopilotT = std::min(1.0, autopilotT + deltaTime / autopilotDuration);
@@ -736,6 +814,8 @@ int main(int argc, char **argv) {
       ImGui::SliderFloat("cameraRoll", &cameraRollDeg, -180.0f, 180.0f);
     }
 
+    // Simple 3D HUD Labels - moved below after cameraState is computed
+
     // 使用缓动函数让动画更平滑
     float easedT = easeInOutCubic((float)autopilotT);
     glm::vec3 autopilotPos =
@@ -744,6 +824,105 @@ int main(int argc, char **argv) {
         now, renderWidth, renderHeight, mouseX, mouseY, mouseControlEnabled,
         frontView, topView, cameraRollDeg, fovScale, autopilotActive,
         autopilotPos);
+
+    // ================== PROFESSIONAL HUD INTERFACE ==================
+    if (kEnableImGui) {
+        // === Title Panel (Top Center) ===
+        ImGui::SetNextWindowPos(ImVec2((float)width / 2.0f - 200, 15));
+        ImGui::SetNextWindowBgAlpha(0.0f);
+        if (ImGui::Begin("Title", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBackground)) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.95f, 1.0f, 1.0f));
+            ImGui::SetWindowFontScale(1.8f);
+            ImGui::Text("UNMANNED STARRY SKY");
+            ImGui::SetWindowFontScale(1.0f);
+            ImGui::PopStyleColor();
+            ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 0.8f), "   Real-time Black Hole Visualization");
+        }
+        ImGui::End();
+
+        // === Mission Control Panel (Top Left) ===
+        ImGui::SetNextWindowPos(ImVec2(20, 80));
+        ImGui::SetNextWindowBgAlpha(0.45f);
+        if (ImGui::Begin("Mission Control", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav)) {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[ MISSION CONTROL ]");
+            ImGui::Separator();
+
+            // Target info
+            ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "TARGET:");
+            ImGui::SameLine();
+            ImGui::Text("Schwarzschild Black Hole");
+
+            // Status with animated indicator
+            float pulse = 0.5f + 0.5f * sin((float)now * 3.0f);
+            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, pulse), "[*]");
+            ImGui::SameLine();
+            ImGui::Text("System Online");
+
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press [C] for Autopilot");
+        }
+        ImGui::End();
+
+        // === Physics Data Panel (Top Right) ===
+        ImGui::SetNextWindowPos(ImVec2((float)width - 280, 80));
+        ImGui::SetNextWindowBgAlpha(0.45f);
+        if (ImGui::Begin("Physics Data", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav)) {
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "[ TELEMETRY DATA ]");
+            ImGui::Separator();
+
+            float distance = glm::length(cameraState.pos);
+            float schwarzschildRadius = 1.0f; // Rs = 1 in our units
+
+            ImGui::Text("Distance:     %.2f Rs", distance);
+            ImGui::Text("Altitude:     %.1f km", distance * 1000.0f);
+
+            // Event horizon warning
+            if (distance < 5.0f) {
+                float warn = 0.5f + 0.5f * sin((float)now * 8.0f);
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.1f, warn), "!! EVENT HORIZON PROXIMITY !!");
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Time Dilation: %.4f", sqrt(1.0f - schwarzschildRadius / distance));
+            ImGui::Text("Gravitational: %.2f g", 1.0f / (distance * distance));
+
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Mission Time: %.1f s", now);
+        }
+        ImGui::End();
+
+        // === Satellite Status Panel (Bottom Left) ===
+        SatelliteState satPreview = computeSatelliteOrbit(now);
+        ImGui::SetNextWindowPos(ImVec2(20, (float)height - 120));
+        ImGui::SetNextWindowBgAlpha(0.45f);
+        if (ImGui::Begin("Satellite", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav)) {
+            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "[ PROBE STATUS ]");
+            ImGui::Separator();
+
+            // Blinking status indicator
+            float blink = fmod((float)now * 2.0f, 1.0f) > 0.5f ? 1.0f : 0.3f;
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, blink), "[*]");
+            ImGui::SameLine();
+            ImGui::Text("Transmitting...");
+
+            ImGui::Text("Orbit Radius: %.2f Rs", glm::length(satPreview.position));
+            ImGui::Text("Velocity: %.2f c", glm::length(satPreview.velocity) * 0.1f);
+        }
+        ImGui::End();
+
+        // === Controls Help (Bottom Right) ===
+        ImGui::SetNextWindowPos(ImVec2((float)width - 220, (float)height - 130));
+        ImGui::SetNextWindowBgAlpha(0.45f);
+        if (ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav)) {
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "[ CONTROLS ]");
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "[C]     Autopilot");
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "[1-4]   Camera Views");
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "[0]     Default View");
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "[ESC]   Exit");
+        }
+        ImGui::End();
+    }
     {
       // --- Step 1: Black hole ray marching into fboBlackhole
       RenderToTextureInfo blackholeUniforms;
@@ -828,9 +1007,12 @@ int main(int argc, char **argv) {
     glm::mat4 satelliteModel =
         computeSatelliteModel(now, satState.position, satState.velocity);
     glm::vec3 lightDir = glm::normalize(-satState.position);
+    float dishAngle = (float)now * 2.0f; // Rotate 2 rad/sec
     renderSatellite(satelliteMesh, satelliteProgram, satelliteModel,
                     cameraState.view, cameraState.projection, cameraState.pos,
-                    lightDir);
+                    lightDir, galaxy, dishAngle, (float)now);
+
+    // Bezier Surface removed per user request
 
     // --- Step 4: release FBO and move into the bloom chain
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

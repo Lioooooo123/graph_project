@@ -380,6 +380,41 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   return color;
 }
 
+// ========== LENS FLARE EFFECT ==========
+vec3 lensFlare(vec2 uv, vec2 lightPos, float intensity) {
+    vec2 delta = uv - lightPos;
+    float dist = length(delta);
+
+    vec3 flare = vec3(0.0);
+
+    // Main glow
+    float glow = 1.0 / (dist * 10.0 + 1.0);
+    flare += vec3(1.0, 0.9, 0.7) * glow * 0.5;
+
+    // Anamorphic streak (horizontal line)
+    float streak = exp(-abs(delta.y) * 20.0) * exp(-abs(delta.x) * 2.0);
+    flare += vec3(0.8, 0.9, 1.0) * streak * 0.3;
+
+    // Ring artifacts
+    float ring1 = smoothstep(0.1, 0.12, dist) * smoothstep(0.14, 0.12, dist);
+    float ring2 = smoothstep(0.2, 0.22, dist) * smoothstep(0.24, 0.22, dist);
+    flare += vec3(0.4, 0.6, 1.0) * (ring1 + ring2 * 0.5) * 0.4;
+
+    // Ghost artifacts (reflected from center)
+    vec2 ghostPos = -delta * 0.5;
+    float ghostDist = length(uv - ghostPos);
+    float ghost = 1.0 / (ghostDist * 20.0 + 1.0);
+    flare += vec3(0.3, 0.5, 0.8) * ghost * 0.15;
+
+    return flare * intensity;
+}
+
+// ========== VIGNETTE EFFECT ==========
+float vignette(vec2 uv) {
+    float dist = length(uv);
+    return smoothstep(1.2, 0.4, dist);
+}
+
 void main() {
   mat3 view;
 
@@ -406,11 +441,29 @@ void main() {
   view = lookAt(cameraPos, target, radians(cameraRoll));
 
   vec2 uv = gl_FragCoord.xy / resolution.xy - vec2(0.5);
-  uv.x *= resolution.x / resolution.y;
+  float aspect = resolution.x / resolution.y;
+  uv.x *= aspect;
 
   vec3 dir = normalize(vec3(-uv.x * fov, uv.y * fov, 1.0));
   vec3 pos = cameraPos;
   dir = view * dir;
 
-  fragColor.rgb = traceColor(pos, dir);
+  vec3 color = traceColor(pos, dir);
+
+  // Apply lens flare from accretion disk (light source at center)
+  float distToCenter = length(cameraPos);
+  float flareIntensity = smoothstep(20.0, 5.0, distToCenter) * 0.8;
+
+  // Calculate light position in screen space (black hole is at origin)
+  vec3 toBlackHole = normalize(-cameraPos);
+  vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+  float facingBlackHole = max(0.0, dot(view * viewDir, toBlackHole));
+
+  vec2 lightScreenPos = vec2(0.0); // Black hole at center
+  color += lensFlare(uv, lightScreenPos, flareIntensity * facingBlackHole);
+
+  // Apply subtle vignette for cinematic look
+  color *= vignette(uv * 0.8);
+
+  fragColor.rgb = color;
 }
