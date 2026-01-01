@@ -1,13 +1,3 @@
-/**
- * @file main.cpp
- * @author Ross Ning (rossning92@gmail.com)
- * @brief Real-time black hole rendering in OpenGL.
- * @version 0.1
- * @date 2020-08-29
- *
- * @copyright Copyright (c) 2020
- *
- */
 
 #include <algorithm>
 #include <assert.h>
